@@ -1,0 +1,6 @@
+aiogram==3.21.0
+ydb==3.21.6
+python-dotenv==1.1.1
+aiofiles==24.1.0
+pydantic==2.11.7
+structlog==25.4.0
