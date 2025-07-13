@@ -19,7 +19,7 @@ class BaseRepository:
     async def _get_connection(self):
         """Получает подключение к базе данных"""
         if not self.connection:
-            self.connection = await get_ydb_connection()
+            self.connection = get_ydb_connection()
         return self.connection
     
     async def _execute_query(self, query: str, parameters: Dict[str, Any] = None) -> Any:
@@ -35,29 +35,23 @@ class BaseRepository:
         """
         try:
             conn = await self._get_connection()
-            result = await conn.execute_query(query, parameters or {})
+            
+            # Передаем параметры как есть - с префиксом $
+            ydb_params = parameters or {}
+            
+            print(f"[DEBUG BASE_REPO] Исходные параметры: {parameters}")
+            print(f"[DEBUG BASE_REPO] Передаем в connection: {ydb_params}")
+            logger.info(f"Передаем параметры в YDB: {ydb_params}")
+            
+            result = conn.execute_query(query, ydb_params)
+            
+            print(f"[DEBUG BASE_REPO] Запрос выполнен успешно")
             return result
         except Exception as e:
             logger.error(f"Ошибка выполнения запроса: {e}")
             logger.error(f"Запрос: {query}")
             logger.error(f"Параметры: {parameters}")
             raise
-    
-    def _prepare_datetime(self, dt: Optional[datetime]) -> Optional[str]:
-        """Подготавливает datetime для вставки в YDB"""
-        if dt is None:
-            return None
-        return dt.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-    
-    def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
-        """Парсит datetime из YDB"""
-        if not dt_str:
-            return None
-        try:
-            # YDB возвращает datetime в ISO формате
-            return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
-        except ValueError:
-            return None
     
     async def _fetch_one(self, query: str, parameters: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
         """Выполняет запрос и возвращает одну запись"""
@@ -80,3 +74,15 @@ class BaseRepository:
             return [dict(zip(columns, row)) for row in result[0].rows]
         
         return []
+    
+    def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
+        """Парсит datetime из YDB"""
+        if not dt_str:
+            return None
+        try:
+            if isinstance(dt_str, datetime):
+                return dt_str
+            # YDB возвращает datetime в ISO формате
+            return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            return None
